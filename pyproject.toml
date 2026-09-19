@@ -50,3 +50,12 @@ known-first-party = ["legible", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    "error",
+    # PyMuPDF ships SWIG bindings that trip a CPython 3.14 introspection change.
+    # Nothing here can fix it, and failing on it would gate this library on an
+    # upstream release. Every other warning is still an error.
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+]

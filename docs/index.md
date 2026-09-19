@@ -92,22 +92,4 @@ Tesseract itself must be on `PATH`, with language data for the languages you req
 
 All inherit `LegibleError`.
 
-## Development
-
-```bash
-uv sync --extra dev
-uv run --extra dev ruff format .
-uv run --extra dev ruff check --fix .
-uv run --extra dev ty check src
-uv run --extra dev pytest
-```
-
-Run the tools through `uv run`, not `uvx` — `uvx` pins nothing and resolves the newest
-release on every invocation, so the checks can change behaviour with nothing in the
-repository changing.
-
-See [`AGENTS.md`](AGENTS.md) for the conventions CI enforces.
-
-## Licence
-
-MIT
+See [Getting Started](getting-started.md).
