@@ -10,7 +10,7 @@ asserts the real adapters against the same Protocols.
 """
 
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import Final, Protocol, TypedDict, runtime_checkable
 
 import pymupdf
 import pytesseract
@@ -19,6 +19,29 @@ from PIL import Image
 from legible.errors import DocumentUnreadableError, OcrUnavailableError, PageRenderError
 from legible.models import PageInspection
 from legible.settings import OcrSettings
+
+EMPTY_BOX_CONFIDENCE: Final[float] = 0.0
+"""At or below this score, Tesseract is reporting a box it found no text in.
+
+`image_to_data` returns one row per detected box and scores the empty ones -1,
+so a clean page produces many of them. They are excluded rather than averaged
+in, because including them drags a well-read page toward zero and makes the
+confidence useless for the only thing it is for.
+"""
+
+
+class TesseractWordData(TypedDict):
+    """The two columns of `image_to_data` output this library reads.
+
+    Named rather than passed as a bare mapping: the shape is pytesseract's, not
+    ours, and a dictionary crossing a module boundary is a missing type.
+
+    `conf` is `int | str` because pytesseract has returned both across versions,
+    and a caller reading the declared type should not be surprised by either.
+    """
+
+    conf: list[int | str]
+    text: list[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,13 +81,16 @@ class OcrEngine(Protocol):
 class PyMuPdfReader:
     """`DocumentReader` backed by PyMuPDF.
 
-    Both methods catch `Exception` around the open call and re-raise it as
-    `DocumentUnreadableError`. That is broader than this codebase otherwise
-    allows, and deliberate: PyMuPDF surfaces a corrupt file, an empty file, a
+    Both the open and the render call catch `Exception` and re-raise it as a
+    library error. That is broader than this codebase otherwise allows, and
+    deliberate: PyMuPDF surfaces a corrupt file, an empty file, a
     password-protected one and a non-PDF through several unrelated types, and
     enumerating them would leave the one it adds next release uncaught — which
     is the case that matters, because a corpus of thousands of scanned files
     contains every kind of broken there is.
+
+    The translation is the point of this class. Nothing above it imports a
+    PyMuPDF exception type.
     """
 
     def inspect(self, path: str) -> tuple[PageInspection, ...]:
@@ -155,7 +181,7 @@ class TesseractEngine:
         )
 
 
-def _mean_word_confidence(data: dict[str, Any]) -> float:
+def _mean_word_confidence(data: TesseractWordData) -> float:
     """The average confidence over words that actually carry text.
 
     Tesseract reports a row per detected box, including empty ones scored -1.
@@ -165,7 +191,7 @@ def _mean_word_confidence(data: dict[str, Any]) -> float:
     scores = [
         float(confidence)
         for confidence, text in zip(data["conf"], data["text"], strict=True)
-        if str(text).strip() and float(confidence) > 0
+        if text.strip() and float(confidence) > EMPTY_BOX_CONFIDENCE
     ]
     if not scores:
         return 0.0
